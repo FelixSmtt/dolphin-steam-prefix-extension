@@ -34,7 +34,6 @@ static QString getShortcutsFilePath() {
                           QStringLiteral("/config/shortcuts.vdf"));
 }
 
-// Resolves the actual game title using source-parsers for VDF files
 static QString getGameNameFromManifest(const QString &compatDataPath,
                                        const QString &appIdStr) {
   if (appIdStr == QLatin1String("0")) {
@@ -43,47 +42,84 @@ static QString getGameNameFromManifest(const QString &compatDataPath,
 
   QDir dir(compatDataPath);
   if (!dir.cdUp() || !dir.cdUp()) {
-    return QString();
+    return QStringLiteral("App ID: %1").arg(appIdStr);
   }
 
-  // 1. Try reading the official appmanifest text VDF (.acf) first
   QString manifestPath =
       dir.filePath(QStringLiteral("appmanifest_%1.acf").arg(appIdStr));
   QFile file(manifestPath);
 
-  if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-    QTextStream in(&file);
-    std::string rawData = in.readAll().toStdString();
-    try {
-      // Parse using VdfParser
-      auto rootKv = VdfParser::fromString(
-          rawData); // or VdfParser::fromString depending on
-                    // exact API, but parse() is standard
-      auto nameChild = rootKv.getChild("name");
-      if (nameChild.has_value()) {
-        auto val = nameChild->getValue();
-        if (val.has_value()) {
-          return QString::fromStdString(val.value());
-        }
-      }
-    } catch (...) {
-      // Fallback if parsing fails
+  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    qDebug() << "Failed to open manifest file:" << manifestPath;
+    return QStringLiteral("App %1").arg(appIdStr);
+  }
+
+  QTextStream in(&file);
+  // Matches lines like: "name" "Cyberpunk 2077" (case-insensitive)
+  QRegularExpression nameRegex(QStringLiteral("^\\s*\"name\"\\s+\"([^\"]+)\""),
+                               QRegularExpression::CaseInsensitiveOption);
+
+  while (!in.atEnd()) {
+    QString line = in.readLine();
+    QRegularExpressionMatch match = nameRegex.match(line);
+    if (match.hasMatch()) {
+      return match.captured(1);
     }
   }
 
-  // 2. Fallback: If it's a non-Steam game, check shortcuts.vdf in userdata
-  // (Non-Steam appIDs are computed identifiers mapped inside shortcuts.vdf)
-  QString shortcutsPath = getShortcutsFilePath();
-  QFile shortcutsFile(shortcutsPath);
-  if (shortcutsFile.open(QIODevice::ReadOnly)) {
-    QByteArray rawData = shortcutsFile.readAll();
-    try {
-      auto rootKv = VdfParser::fromString(
-          std::string(rawData.constData(), rawData.size()));
-      // shortcuts.vdf typically structures entries under numeric indexes ("0",
-      // "1", etc.) You can iterate children to match appid if needed, or parse
-      // titles.
-    } catch (...) {
+  qDebug() << "Failed to find name field in manifest:" << manifestPath;
+  return QStringLiteral("App %1").arg(appIdStr);
+}
+
+static QString findGameArtwork(const QString &compatDataPath,
+                               const QString &appIdStr) {
+  if (appIdStr == QLatin1String("0")) {
+    return QString();
+  }
+
+  QDir compatDir(compatDataPath);
+  if (!compatDir.cdUp() || !compatDir.cdUp()) {
+    return QString();
+  }
+
+  QDir steamRoot = compatDir;
+  if (!steamRoot.cdUp()) {
+    return QString();
+  }
+
+  QString appCachePath = steamRoot.filePath(
+      QStringLiteral("appcache/librarycache/%1").arg(appIdStr));
+  QDir appCacheDir(appCachePath);
+
+  if (!appCacheDir.exists()) {
+    return QString();
+  }
+
+  QStringList filters;
+  filters << QStringLiteral("*.jpg") << QStringLiteral("*.png");
+  appCacheDir.setNameFilters(filters);
+
+  QFileInfoList list = appCacheDir.entryInfoList(QDir::Files);
+  for (const QFileInfo &fileInfo : list) {
+    QString baseName =
+        fileInfo.completeBaseName(); // filename without extension
+
+    // Steam cache hashes are typically 32 (MD5) or 40 (SHA-1) hex characters
+    // long
+    if (baseName.length() == 32 || baseName.length() == 40) {
+      bool isHex = true;
+      for (QChar c : baseName) {
+        char ch = c.toLatin1();
+        if (!((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') ||
+              (ch >= 'A' && ch <= 'F'))) {
+          isHex = false;
+          break;
+        }
+      }
+      if (isHex) {
+        return fileInfo
+            .absoluteFilePath(); // Found the hash-named artwork file!
+      }
     }
   }
 
@@ -96,23 +132,33 @@ QStringList SteamCompatPluginOverlay::getOverlays(const QUrl &url) {
   }
 
   const QString localPath = url.toLocalFile();
+  if (localPath.isEmpty()) {
+    return QStringList();
+  }
 
-  // Capture the ID portion after compatdata/
-  QRegularExpression rx(
-      QStringLiteral(".*/steamapps/compatdata/(\\d+)(/.*)?$"));
-  QRegularExpressionMatch match = rx.match(localPath);
+  QFileInfo fileInfo(localPath);
+  if (!fileInfo.isDir()) {
+    return QStringList();
+  }
 
-  if (match.hasMatch()) {
-    QString appIdStr = match.captured(1);
+  QDir parentDir(fileInfo.absolutePath());
+  if (parentDir.dirName() != QStringLiteral("compatdata")) {
+    return QStringList(); // Not a direct child of compatdata/
+  }
 
-    QString gameName = getGameNameFromManifest(localPath, appIdStr);
-    if (!gameName.isEmpty()) {
-      qDebug() << "Parsed Game Title via source-parsers:" << gameName;
-    }
+  QString appIdStr = url.fileName();
 
-    if (appIdStr.length() >= 10 && appIdStr != QLatin1String("0")) {
-      qDebug() << "MATCH FOUND! Showing Steam overlay for:" << localPath;
-      return QStringList{QStringLiteral("steam-non-steam")};
+  QString gameName = getGameNameFromManifest(localPath, appIdStr);
+  if (!gameName.isEmpty()) {
+    qDebug() << "Parsed Game Title via source-parsers:" << gameName;
+  }
+
+  if (appIdStr.length() >= 10 && appIdStr != QLatin1String("0")) {
+    return QStringList{QStringLiteral("steam-non-steam")};
+  } else {
+    QString artworkPath = findGameArtwork(localPath, appIdStr);
+    if (!artworkPath.isEmpty()) {
+      return QStringList{artworkPath};
     } else {
       return QStringList{QStringLiteral("steam")};
     }
