@@ -3,11 +3,13 @@
 #include <KOverlayIconPlugin>
 #include <QStringList>
 #include <QUrl>
+#include <QVariant>
 
-class SteamCompatOverlayPlugin : public KOverlayIconPlugin {
+class SteamCompatPluginOverlay : public KOverlayIconPlugin {
+  Q_PLUGIN_METADATA(IID "de.steamcompat.ovarlayiconplugin")
   Q_OBJECT
 public:
-  explicit SteamCompatOverlayPlugin(QObject *parent = nullptr,
+  explicit SteamCompatPluginOverlay(QObject *parent = nullptr,
                                     const QList<QVariant> &args = {});
   QStringList getOverlays(const QUrl &url) override;
 };

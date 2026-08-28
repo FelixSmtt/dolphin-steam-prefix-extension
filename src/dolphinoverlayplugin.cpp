@@ -5,18 +5,23 @@
 #include <QDir>
 #include <QRegularExpression>
 
-SteamCompatOverlayPlugin::SteamCompatOverlayPlugin(QObject *parent,
+SteamCompatPluginOverlay::SteamCompatPluginOverlay(QObject *parent,
                                                    const QList<QVariant> &args)
     : KOverlayIconPlugin(parent) {
+
   Q_UNUSED(args);
 }
 
-QStringList SteamCompatOverlayPlugin::getOverlays(const QUrl &url) {
+QStringList SteamCompatPluginOverlay::getOverlays(const QUrl &url) {
+
   if (!url.isLocalFile()) {
     return QStringList();
   }
 
   const QString localPath = url.toLocalFile();
+
+  // Debug print to see every item Dolphin asks about
+  // qDebug() << "Checking URL for overlay:" << localPath;
 
   // Match Steam compatdata folders
   QRegularExpression rx(
@@ -24,13 +29,11 @@ QStringList SteamCompatOverlayPlugin::getOverlays(const QUrl &url) {
   QRegularExpressionMatch match = rx.match(localPath);
 
   if (match.hasMatch()) {
-    // "steam" will look for the system Steam icon theme badge
+    qDebug() << "MATCH FOUND! Showing Steam overlay for:" << localPath;
     return QStringList{QStringLiteral("steam")};
   }
 
   return QStringList();
 }
-
-K_PLUGIN_CLASS_WITH_JSON(SteamCompatOverlayPlugin, "dolphinoverlayplugin.json")
 
 #include "dolphinoverlayplugin.moc"
