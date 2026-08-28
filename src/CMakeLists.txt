@@ -28,3 +28,8 @@ target_link_libraries(steamcompatoverlayplugin
     Qt6::Core
     Qt6::Gui
 )
+
+#---Resources---
+install(FILES icons/steam-non-steam.png
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+)

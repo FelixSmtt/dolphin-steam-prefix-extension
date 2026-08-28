@@ -15,7 +15,7 @@ make -j$(nproc) install
 # Correct the environment paths (pointing to lib64)
 export QT_PLUGIN_PATH="$PWD/install_test/lib64/plugins:$QT_PLUGIN_PATH"
 export QT_DEBUG_PLUGINS=1
-# export XDG_DATA_DIRS="$PWD/../install_test/share:$XDG_DATA_DIRS"
+export XDG_DATA_DIRS="$PWD/install_test/share:$XDG_DATA_DIRS"
 
 # Force kill any running dolphin daemon instances so it reloads plugins
 kquitapp6 dolphin 2>/dev/null
