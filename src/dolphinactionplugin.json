@@ -1,0 +1,9 @@
+{
+  "KPlugin": {
+    "MimeTypes": ["inode/directory"],
+    "Name": "Steam Compat Prefix Helper",
+    "Description": "Identifies Steam non-game Proton prefixes and shows game titles",
+    "ServiceTypes": ["KFileItemAction/Plugin"]
+  },
+  "MimeType": "inode/directory"
+}

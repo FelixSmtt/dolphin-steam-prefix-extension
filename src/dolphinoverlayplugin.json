@@ -1,0 +1,7 @@
+{
+  "KPlugin": {
+    "Description": "Shows a Steam icon overlay on Steam Proton prefix folders",
+    "Name": "Steam Compat Overlay",
+    "ServiceTypes": ["KOverlayIcon/Plugin"]
+  }
+}
