@@ -3,17 +3,25 @@
 #include <KFileItemListProperties>
 #include <KPluginFactory>
 
+#include "steamhelper.h"
 #include <QAction>
 #include <QClipboard>
 #include <QDebug>
 #include <QDir>
 #include <QFile>
+#include <QFileIconProvider>
 #include <QGuiApplication>
+#include <QIcon>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QList>
+#include <QMap>
+#include <QPixmap>
 #include <QRegularExpression>
+#include <QString>
+#include <QTextStream>
 #include <QUrl>
+#include <QUuid>
 #include <QWidget>
 
 #include "dolphinactionplugin.h"
@@ -23,28 +31,6 @@ K_PLUGIN_CLASS_WITH_JSON(SteamCompatPluginAction, "dolphinactionplugin.json")
 SteamCompatPluginAction::SteamCompatPluginAction(QObject *parent,
                                                  const QList<QVariant> &)
     : KAbstractFileItemActionPlugin(parent) {}
-
-QString getGameNameForId(const QString &compatId) {
-  QString cachePath =
-      QDir::home().filePath(QStringLiteral(".cache/steam-game-names.json"));
-  QFile file(cachePath);
-  if (!file.open(QIODevice::ReadOnly)) {
-    return QString();
-  }
-
-  QByteArray data = file.readAll();
-  QJsonDocument doc = QJsonDocument::fromJson(data);
-  if (!doc.isObject()) {
-    return QString();
-  }
-
-  QJsonObject obj = doc.object();
-  if (obj.contains(compatId)) {
-    return obj.value(compatId).toString();
-  }
-
-  return QString();
-}
 
 QList<QAction *>
 SteamCompatPluginAction::actions(const KFileItemListProperties &fileItemInfos,
@@ -83,7 +69,7 @@ SteamCompatPluginAction::actions(const KFileItemListProperties &fileItemInfos,
       QString compatId = match.captured(1);
       qDebug() << "Matched compat ID:" << compatId;
 
-      QString gameName = getGameNameForId(compatId);
+      QString gameName = getGameName(localPath, compatId);
       qDebug() << "Retrieved game name from cache:" << gameName;
 
       if (gameName.isEmpty()) {
