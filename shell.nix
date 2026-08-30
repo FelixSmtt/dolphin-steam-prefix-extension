@@ -19,6 +19,7 @@ pkgs.mkShell {
     pkg-config
     gcc
     gdb
+    icoutils
   ];
 
   buildInputs = with pkgs; [
