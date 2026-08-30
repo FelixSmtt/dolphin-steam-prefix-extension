@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDebug>
+#include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QFileIconProvider>
@@ -380,14 +381,8 @@ inline QString getGameName(const QString &compatDataPath,
     return QStringLiteral("Default Steam Prefix");
   }
 
-  // 1. Try checking if it's a native Steam game manifest
-  QDir dir(compatDataPath);
-  if (dir.cdUp() && dir.cdUp()) {
-    QString manifestPath =
-        dir.filePath(QStringLiteral("appmanifest_%1.acf").arg(appIdStr));
-    if (QFile::exists(manifestPath)) {
-      return getGameNameFromManifest(compatDataPath, appIdStr);
-    }
+  if (appIdStr.length() < 10) {
+    return getGameNameFromManifest(compatDataPath, appIdStr);
   }
 
   // 2. Otherwise, look for it inside shortcuts.vdf as a non-Steam game
@@ -403,5 +398,68 @@ inline QString getGameName(const QString &compatDataPath,
   }
 
   // 3. Fallback generic name if nothing matches
-  return QStringLiteral("App %1").arg(appIdStr);
+  return QStringLiteral("Unknown Application:  %1").arg(appIdStr);
+}
+
+inline QString loadNonSteamGameArtwork(const QString &compatDataPath,
+                                       const QString &appIdStr) {
+  if (appIdStr == QLatin1String("0")) {
+    return QString();
+  }
+
+  // 1. Check existing library cache first
+  auto cachedArtworkPath =
+      loadArtworkFromLibraryCache(compatDataPath, appIdStr);
+  if (!cachedArtworkPath.isEmpty()) {
+    return cachedArtworkPath;
+  }
+
+  // 2. Fetch the specific shortcut node using the new helper
+  VdfNode shortcut = loadAppIdShortcutVDFNode(appIdStr);
+  if (shortcut.children.isEmpty()) {
+    return QString();
+  }
+
+  // 3. Check custom icon path
+  QString iconKey = QStringLiteral("icon");
+  if (shortcut.children.contains(iconKey)) {
+    QString iconPath = shortcut.children[iconKey].stringValue;
+    if (!iconPath.isEmpty() && QFile::exists(iconPath)) {
+      return iconPath;
+    }
+  }
+
+  // 4. Fallback: Extract from executable and cache it
+  QString exeKey = QStringLiteral("Exe");
+  if (shortcut.children.contains(exeKey)) {
+    QString exePath = shortcut.children[exeKey].stringValue;
+    exePath.remove(QLatin1Char('"'));
+
+    QString extractedIcon =
+        extractAndCacheExeIcon(compatDataPath, appIdStr, exePath);
+    if (!extractedIcon.isEmpty()) {
+      return extractedIcon;
+    }
+  }
+
+  return QString();
+}
+
+inline QStringList loadGameArtwork(const QString &compatDataPath,
+                                   const QString &appIdStr) {
+  if (appIdStr.length() >= 10 && appIdStr != QLatin1String("0")) {
+    QString artworkPath = loadNonSteamGameArtwork(compatDataPath, appIdStr);
+    if (!artworkPath.isEmpty()) {
+      return QStringList{artworkPath};
+    } else {
+      return QStringList{QStringLiteral("steam-non-steam")};
+    }
+  } else {
+    QString artworkPath = loadArtworkFromLibraryCache(compatDataPath, appIdStr);
+    if (!artworkPath.isEmpty()) {
+      return QStringList{artworkPath};
+    } else {
+      return QStringList{QStringLiteral("steam")};
+    }
+  }
 }

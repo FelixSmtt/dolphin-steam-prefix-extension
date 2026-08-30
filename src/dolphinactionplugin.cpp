@@ -31,13 +31,9 @@ K_PLUGIN_CLASS_WITH_JSON(SteamCompatPluginAction, "dolphinactionplugin.json")
 SteamCompatPluginAction::SteamCompatPluginAction(QObject *parent,
                                                  const QList<QVariant> &)
     : KAbstractFileItemActionPlugin(parent) {}
-
 QList<QAction *>
 SteamCompatPluginAction::actions(const KFileItemListProperties &fileItemInfos,
                                  QWidget *parentWidget) {
-  qDebug() << "SteamCompatPluginAction::actions() called! Local:"
-           << fileItemInfos.isLocal();
-
   if (!fileItemInfos.isLocal())
     return {};
 
@@ -47,19 +43,8 @@ SteamCompatPluginAction::actions(const KFileItemListProperties &fileItemInfos,
 
   QList<QAction *> generatedActions;
 
-  // Universal debug action
-  auto debugAction = new QAction(QStringLiteral("[DEBUG] Test Context Action"),
-                                 static_cast<QObject *>(parentWidget));
-  connect(debugAction, &QAction::triggered, [urls]() {
-    for (const auto &u : urls) {
-      qDebug() << "Debug action clicked for path:" << u.toLocalFile();
-    }
-  });
-  generatedActions.append(debugAction);
-
   for (const auto &url : urls) {
     QString localPath = url.toLocalFile();
-    qDebug() << "Checking path:" << localPath;
 
     QRegularExpression rx(
         QStringLiteral(".*/steamapps/compatdata/(\\d+)(/.*)?$"));
@@ -67,28 +52,80 @@ SteamCompatPluginAction::actions(const KFileItemListProperties &fileItemInfos,
 
     if (match.hasMatch()) {
       QString compatId = match.captured(1);
-      qDebug() << "Matched compat ID:" << compatId;
 
       QString gameName = getGameName(localPath, compatId);
-      qDebug() << "Retrieved game name from cache:" << gameName;
-
       if (gameName.isEmpty()) {
         gameName =
             QString(QStringLiteral("Unknown Game (ID: %1)")).arg(compatId);
       }
 
-      QString actionText =
-          QString(QStringLiteral("Steam Game: %1")).arg(gameName);
-      auto action =
-          new QAction(actionText, static_cast<QObject *>(parentWidget));
+      bool isNative =
+          (compatId.length() < 10 && compatId != QLatin1String("0"));
 
-      connect(action, &QAction::triggered, [localPath]() {
-        QGuiApplication::clipboard()->setText(localPath);
-      });
+      QStringList iconPaths = loadGameArtwork(localPath, compatId);
+      QIcon actionIcon;
+      if (!iconPaths.isEmpty()) {
+        QString primaryPath = iconPaths.first();
+        if (QFile::exists(primaryPath)) {
+          actionIcon = QIcon(primaryPath);
+        } else {
+          actionIcon = QIcon::fromTheme(primaryPath);
+        }
+      }
 
-      generatedActions.append(action);
-    } else {
-      qDebug() << "Skipped: Path did not match regex.";
+      if (isNative) {
+        // Native Steam game: Open in Steam
+        QString actionText =
+            QString(QStringLiteral("Open in Steam: %1")).arg(gameName);
+        auto action = new QAction(actionIcon, actionText,
+                                  static_cast<QObject *>(parentWidget));
+
+        connect(action, &QAction::triggered, [compatId]() {
+          QString steamUrl =
+              QStringLiteral("steam://nav/games/details/%1").arg(compatId);
+          QDesktopServices::openUrl(QUrl(steamUrl));
+        });
+
+        generatedActions.append(action);
+
+      } else {
+        // Non-Steam game: Open local game folder
+        VdfNode shortcut = loadAppIdShortcutVDFNode(compatId);
+        QString targetFolder;
+
+        if (!shortcut.children.isEmpty()) {
+          if (shortcut.children.contains(QStringLiteral("StartDir"))) {
+            targetFolder =
+                shortcut.children[QStringLiteral("StartDir")].stringValue;
+            targetFolder.remove(QLatin1Char('"'));
+          }
+          if (targetFolder.isEmpty() &&
+              shortcut.children.contains(QStringLiteral("Exe"))) {
+            QString exe = shortcut.children[QStringLiteral("Exe")].stringValue;
+            exe.remove(QLatin1Char('"'));
+            targetFolder = QFileInfo(exe).absolutePath();
+          }
+        }
+
+        if (targetFolder.isEmpty() || !QDir(targetFolder).exists()) {
+          continue; // Skip action creation if the target folder is invalid
+        }
+
+        QString actionText =
+            QString(QStringLiteral("Open Game Folder: %1")).arg(gameName);
+        auto action = new QAction(actionIcon, actionText,
+                                  static_cast<QObject *>(parentWidget));
+
+        connect(action, &QAction::triggered, [targetFolder]() {
+          // Explicitly invoke Dolphin in a new window, bypassing xdg-open
+          // quirks
+          QProcess::startDetached(
+              QStringLiteral("dolphin"),
+              {QStringLiteral("--new-window"), targetFolder});
+        });
+
+        generatedActions.append(action);
+      }
     }
   }
 
