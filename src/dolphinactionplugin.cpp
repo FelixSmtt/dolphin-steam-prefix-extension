@@ -14,6 +14,17 @@
 
 K_PLUGIN_CLASS_WITH_JSON(SteamCompatPluginAction, "dolphinactionplugin.json")
 
+void OpenInSteam(const QString &compatId) {
+  QString steamUrl =
+      QStringLiteral("steam://nav/games/details/%1").arg(compatId);
+  QDesktopServices::openUrl(QUrl(steamUrl));
+}
+
+void OpenInDolphin(const QString &targetFolder) {
+  QProcess::startDetached(QStringLiteral("dolphin"),
+                          {QStringLiteral("--new-window"), targetFolder});
+}
+
 SteamCompatPluginAction::SteamCompatPluginAction(QObject *parent,
                                                  const QList<QVariant> &)
     : KAbstractFileItemActionPlugin(parent) {}
@@ -66,11 +77,8 @@ SteamCompatPluginAction::actions(const KFileItemListProperties &fileItemInfos,
         auto action = new QAction(actionIcon, actionText,
                                   static_cast<QObject *>(parentWidget));
 
-        connect(action, &QAction::triggered, [compatId]() {
-          QString steamUrl =
-              QStringLiteral("steam://nav/games/details/%1").arg(compatId);
-          QDesktopServices::openUrl(QUrl(steamUrl));
-        });
+        connect(action, &QAction::triggered,
+                [compatId]() { OpenInSteam(compatId); });
 
         generatedActions.append(action);
 
@@ -102,13 +110,8 @@ SteamCompatPluginAction::actions(const KFileItemListProperties &fileItemInfos,
         auto action = new QAction(actionIcon, actionText,
                                   static_cast<QObject *>(parentWidget));
 
-        connect(action, &QAction::triggered, [targetFolder]() {
-          // Explicitly invoke Dolphin in a new window, bypassing xdg-open
-          // quirks
-          QProcess::startDetached(
-              QStringLiteral("dolphin"),
-              {QStringLiteral("--new-window"), targetFolder});
-        });
+        connect(action, &QAction::triggered,
+                [targetFolder]() { OpenInDolphin(targetFolder); });
 
         generatedActions.append(action);
       }
