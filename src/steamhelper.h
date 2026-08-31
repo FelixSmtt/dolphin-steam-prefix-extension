@@ -10,6 +10,7 @@
 #include <QMap>
 #include <QPixmap>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QString>
 #include <QUuid>

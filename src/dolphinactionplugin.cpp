@@ -3,28 +3,14 @@
 #include <KFileItemListProperties>
 #include <KPluginFactory>
 
-#include "steamhelper.h"
 #include <QAction>
-#include <QClipboard>
 #include <QDebug>
-#include <QDir>
-#include <QFile>
-#include <QFileIconProvider>
-#include <QGuiApplication>
-#include <QIcon>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QList>
-#include <QMap>
-#include <QPixmap>
-#include <QRegularExpression>
 #include <QString>
-#include <QTextStream>
-#include <QUrl>
-#include <QUuid>
 #include <QWidget>
 
 #include "dolphinactionplugin.h"
+#include "steamhelper.h"
 
 K_PLUGIN_CLASS_WITH_JSON(SteamCompatPluginAction, "dolphinactionplugin.json")
 

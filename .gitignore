@@ -183,3 +183,4 @@ compile_commands.json
 
 .direnv/
 install_test/
+.cache/

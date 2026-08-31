@@ -2,15 +2,7 @@
 #include <QDebug>
 #include <QDir>
 #include <QFile>
-#include <QFileIconProvider>
-#include <QIcon>
-#include <QMap>
-#include <QPixmap>
-#include <QRegularExpression>
-#include <QStandardPaths>
 #include <QString>
-#include <QTextStream>
-#include <QUuid>
 
 #include "steamhelper.h"
 
@@ -38,7 +30,7 @@ QStringList SteamCompatPluginOverlay::getOverlays(const QUrl &url) {
 
   QDir parentDir(fileInfo.absolutePath());
   if (parentDir.dirName() != QStringLiteral("compatdata")) {
-    return QStringList(); // Not a direct child of compatdata/
+    return QStringList();
   }
 
   QString appIdStr = url.fileName();
