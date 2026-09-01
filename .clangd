@@ -1,5 +1,4 @@
 CompileFlags:
   Add:
     - "-std=c++20"
-  # Pulls in Nix's compile flags automatically if compile_commands.json misses system shifts
   Compiler: g++

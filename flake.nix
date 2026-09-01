@@ -6,7 +6,7 @@
   };
 
   outputs =
-    { self, nixpkgs }:
+    { nixpkgs }:
     let
       supportedSystems = [
         "x86_64-linux"
@@ -18,17 +18,6 @@
     {
       packages = forAllSystems (pkgs: {
         default = pkgs.callPackage ./nix/package.nix { };
-      });
-
-      devShells = forAllSystems (pkgs: {
-        default = pkgs.mkShell {
-          inputsFrom = [ self.packages.${pkgs.system}.default ];
-          buildInputs = with pkgs; [
-            cmake
-            ninja
-            icoutils
-          ];
-        };
       });
     };
 }

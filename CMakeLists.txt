@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
-project(desktop-shell-integration-dolphin VERSION 1.0.0 LANGUAGES CXX)
+project(dolphin-steam-prefix-extension VERSION 1.0.0 LANGUAGES CXX)
 
 add_compile_options(-fexceptions)
 set(CMAKE_CXX_STANDARD 20)
