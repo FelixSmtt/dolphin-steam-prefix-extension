@@ -16,6 +16,7 @@
 #include <QUuid>
 #include <cstdint>
 #include <cstring>
+#include <qlist.h>
 
 struct VdfNode {
   enum Type { TypeObject, TypeString, TypeInt32 };
@@ -25,23 +26,33 @@ struct VdfNode {
   int32_t intValue = 0;
 };
 
-static QString getShortcutsFilePath() {
+static QList<QString> getShortcutsFilePaths() {
   QString steamUserData =
       QStandardPaths::writableLocation(QStandardPaths::HomeLocation) +
       QStringLiteral("/.local/share/Steam/userdata/");
 
   QDir userDir(steamUserData);
   if (!userDir.exists()) {
-    return QString();
+    return QList<QString>();
   }
 
   QStringList userIds = userDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
   if (userIds.isEmpty()) {
-    return QString();
+    return QList<QString>();
   }
 
-  return userDir.filePath(userIds.first() +
-                          QStringLiteral("/config/shortcuts.vdf"));
+  QList<QString> shortcutPaths;
+  shortcutPaths.reserve(userIds.size());
+
+  for (const QString &userId : userIds) {
+    QString path =
+        userDir.filePath(userId + QStringLiteral("/config/shortcuts.vdf"));
+    if (QFileInfo::exists(path)) {
+      shortcutPaths.append(path);
+    }
+  }
+
+  return shortcutPaths;
 }
 
 inline bool parseBinaryVdf(const char *&ptr, const char *end, VdfNode &outObj) {
@@ -152,8 +163,7 @@ inline QString loadArtworkFromLibraryCache(const QString &compatDataPath,
   return QString();
 }
 
-inline VdfNode loadShortcutVDFNode() {
-  QString shortcutsPath = getShortcutsFilePath();
+inline VdfNode loadShortcutVDFNode(const QString &shortcutsPath) {
   if (shortcutsPath.isEmpty()) {
     return VdfNode();
   }
@@ -179,32 +189,49 @@ inline VdfNode loadShortcutVDFNode() {
   return root;
 }
 
+inline QList<VdfNode> loadShortcutNodes() {
+  QList<QString> shortcutPaths = getShortcutsFilePaths();
+  QList<VdfNode> shortcutNodes;
+
+  for (const QString &path : shortcutPaths) {
+    VdfNode node = loadShortcutVDFNode(path);
+    if (!node.children.isEmpty()) {
+      shortcutNodes.append(node);
+    }
+  }
+
+  return shortcutNodes;
+}
+
 inline VdfNode loadAppIdShortcutVDFNode(const QString &appIdStr) {
-  VdfNode root = loadShortcutVDFNode();
-  if (root.children.isEmpty()) {
+  QList<VdfNode> root_nodes = loadShortcutNodes();
+  if (root_nodes.isEmpty()) {
     return VdfNode();
   }
 
   QString shortcutsKey = QStringLiteral("shortcuts");
-  if (!root.children.contains(shortcutsKey)) {
-    return VdfNode();
-  }
+  QString appIdKey = QStringLiteral("appid");
 
-  const VdfNode &shortcutsObj = root.children[shortcutsKey];
-
-  for (auto it = shortcutsObj.children.constBegin();
-       it != shortcutsObj.children.constEnd(); ++it) {
-    const VdfNode &shortcut = it.value();
-    if (shortcut.type != VdfNode::TypeObject)
+  for (const VdfNode &root : root_nodes) {
+    if (!root.children.contains(shortcutsKey)) {
       continue;
+    }
 
-    QString appIdKey = QStringLiteral("appid");
-    if (shortcut.children.contains(appIdKey)) {
-      const VdfNode &appIdNode = shortcut.children[appIdKey];
-      if (appIdNode.type == VdfNode::TypeInt32) {
-        uint32_t unsignedAppId = static_cast<uint32_t>(appIdNode.intValue);
-        if (QString::number(unsignedAppId) == appIdStr) {
-          return shortcut;
+    const VdfNode &shortcutsObj = root.children[shortcutsKey];
+
+    for (auto it = shortcutsObj.children.constBegin();
+         it != shortcutsObj.children.constEnd(); ++it) {
+      const VdfNode &shortcut = it.value();
+      if (shortcut.type != VdfNode::TypeObject)
+        continue;
+
+      if (shortcut.children.contains(appIdKey)) {
+        const VdfNode &appIdNode = shortcut.children[appIdKey];
+        if (appIdNode.type == VdfNode::TypeInt32) {
+          uint32_t unsignedAppId = static_cast<uint32_t>(appIdNode.intValue);
+          if (QString::number(unsignedAppId) == appIdStr) {
+            return shortcut;
+          }
         }
       }
     }
